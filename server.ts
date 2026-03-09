@@ -4,9 +4,33 @@ import Database from "better-sqlite3";
 import { GoogleGenAI, Type } from "@google/genai";
 
 const db = new Database("app.db");
+db.pragma('foreign_keys = ON');
 
 // Initialize database
 try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT 'gray',
+      description TEXT,
+      due_date TEXT,
+      assignee TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migration for existing databases
+  try {
+    db.exec(`ALTER TABLE tags ADD COLUMN description TEXT;`);
+  } catch (e) { /* Ignore if exists */ }
+  try {
+    db.exec(`ALTER TABLE tags ADD COLUMN due_date TEXT;`);
+  } catch (e) { /* Ignore if exists */ }
+  try {
+    db.exec(`ALTER TABLE tags ADD COLUMN assignee TEXT;`);
+  } catch (e) { /* Ignore if exists */ }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +63,13 @@ try {
   } catch (e) {
     // Column might already exist, ignore error
   }
+  
+  // Add tag_id column if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN tag_id INTEGER REFERENCES tags(id) ON DELETE SET NULL`);
+  } catch (e) {
+    // Column might already exist, ignore error
+  }
 } catch (error) {
   console.error("Database initialization error:", error);
 }
@@ -50,6 +81,50 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
+  app.get("/api/tags", (req, res) => {
+    try {
+      const tags = db.prepare("SELECT * FROM tags ORDER BY created_at ASC").all();
+      res.json(tags);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tags" });
+    }
+  });
+
+  app.post("/api/tags", (req, res) => {
+    try {
+      const { name, color, description, due_date, assignee } = req.body;
+      const stmt = db.prepare("INSERT INTO tags (name, color, description, due_date, assignee) VALUES (?, ?, ?, ?, ?)");
+      const info = stmt.run(name, color || "gray", description || null, due_date || null, assignee || null);
+      const newTag = db.prepare("SELECT * FROM tags WHERE id = ?").get(info.lastInsertRowid);
+      res.json(newTag);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create tag" });
+    }
+  });
+
+  app.put("/api/tags/:id", (req, res) => {
+    try {
+      const { name, color, description, due_date, assignee } = req.body;
+      const id = req.params.id;
+      const stmt = db.prepare("UPDATE tags SET name = ?, color = ?, description = ?, due_date = ?, assignee = ? WHERE id = ?");
+      stmt.run(name, color, description || null, due_date || null, assignee || null, id);
+      const updatedTag = db.prepare("SELECT * FROM tags WHERE id = ?").get(id);
+      res.json(updatedTag);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update tag" });
+    }
+  });
+
+  app.delete("/api/tags/:id", (req, res) => {
+    try {
+      const id = req.params.id;
+      db.prepare("DELETE FROM tags WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete tag" });
+    }
+  });
+
   app.get("/api/tasks", (req, res) => {
     try {
       const tasks = db.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all();
@@ -65,10 +140,10 @@ async function startServer() {
 
   app.post("/api/tasks", (req, res) => {
     try {
-      const { title, description, priority, due_date, subtasks, notes } = req.body;
+      const { title, description, priority, due_date, subtasks, notes, tag_id } = req.body;
       const subtasksStr = JSON.stringify(subtasks || []);
-      const stmt = db.prepare("INSERT INTO tasks (title, description, priority, due_date, subtasks, notes) VALUES (?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(title, description || "", priority || "medium", due_date || null, subtasksStr, notes || "");
+      const stmt = db.prepare("INSERT INTO tasks (title, description, priority, due_date, subtasks, notes, tag_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(title, description || "", priority || "medium", due_date || null, subtasksStr, notes || "", tag_id || null);
       const newTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(info.lastInsertRowid) as any;
       res.json({ ...newTask, subtasks: JSON.parse(newTask.subtasks || '[]') });
     } catch (error) {
@@ -78,7 +153,7 @@ async function startServer() {
 
   app.put("/api/tasks/:id", (req, res) => {
     try {
-      const { status, title, description, priority, due_date, subtasks, notes } = req.body;
+      const { status, title, description, priority, due_date, subtasks, notes, tag_id } = req.body;
       const id = req.params.id;
       
       const currentTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
@@ -91,9 +166,10 @@ async function startServer() {
       const newDueDate = due_date !== undefined ? due_date : currentTask.due_date;
       const newSubtasks = subtasks !== undefined ? JSON.stringify(subtasks) : currentTask.subtasks;
       const newNotes = notes !== undefined ? notes : currentTask.notes;
+      const newTagId = tag_id !== undefined ? tag_id : currentTask.tag_id;
 
-      const stmt = db.prepare("UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ?, notes = ? WHERE id = ?");
-      stmt.run(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, newNotes, id);
+      const stmt = db.prepare("UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ?, notes = ?, tag_id = ? WHERE id = ?");
+      stmt.run(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, newNotes, newTagId, id);
       
       const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
       res.json({ ...updatedTask, subtasks: JSON.parse(updatedTask.subtasks || '[]') });

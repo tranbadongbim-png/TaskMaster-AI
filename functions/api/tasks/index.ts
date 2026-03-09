@@ -14,13 +14,13 @@ export async function onRequestGet({ env }) {
 export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
-    const { title, description, priority, due_date, subtasks, notes } = body;
+    const { title, description, priority, due_date, subtasks, notes, tag_id } = body;
     const subtasksStr = JSON.stringify(subtasks || []);
     
     // D1 supports RETURNING
     const info = await env.DB.prepare(
-      "INSERT INTO tasks (title, description, priority, due_date, subtasks, notes) VALUES (?, ?, ?, ?, ?, ?) RETURNING *"
-    ).bind(title, description || "", priority || "medium", due_date || null, subtasksStr, notes || "").first();
+      "INSERT INTO tasks (title, description, priority, due_date, subtasks, notes, tag_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    ).bind(title, description || "", priority || "medium", due_date || null, subtasksStr, notes || "", tag_id || null).first();
     
     return Response.json({ ...info, subtasks: JSON.parse(info.subtasks || '[]') });
   } catch (e) {

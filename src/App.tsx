@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X, StickyNote } from 'lucide-react';
+import Joyride, { Step } from 'react-joyride';
+import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X, StickyNote, Moon, Sun, Tag as TagIcon, Settings2, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type Priority = 'low' | 'medium' | 'high';
@@ -11,6 +12,15 @@ interface Subtask {
   completed: boolean;
 }
 
+interface Tag {
+  id: number;
+  name: string;
+  color: string;
+  description?: string;
+  due_date?: string;
+  assignee?: string;
+}
+
 interface Task {
   id: number;
   title: string;
@@ -20,19 +30,74 @@ interface Task {
   due_date?: string;
   subtasks?: Subtask[];
   notes?: string;
+  tag_id?: number;
   created_at: string;
 }
 
+const TaskSkeleton = () => (
+  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col gap-3 animate-pulse">
+    <div className="flex gap-3 items-start">
+      <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 mt-0.5 shrink-0"></div>
+      <div className="flex-1 min-w-0 space-y-3">
+        <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+        <div className="flex gap-2 mt-3">
+          <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded-md"></div>
+          <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded-md"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const TagGroupSkeleton = () => (
+  <div className="bg-white dark:bg-gray-800/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm animate-pulse mb-6">
+    <div className="flex items-start justify-between mb-4">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-48"></div>
+        </div>
+        <div className="flex gap-4 mt-2">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+        </div>
+      </div>
+      <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+    </div>
+    <div className="space-y-3">
+      <TaskSkeleton />
+      <TaskSkeleton />
+    </div>
+  </div>
+);
+
+const SectionSkeleton = () => (
+  <div className="space-y-4 mb-8 animate-pulse">
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+    </div>
+    <div className="space-y-3">
+      <TaskSkeleton />
+      <TaskSkeleton />
+    </div>
+  </div>
+);
+
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [isManagingTags, setIsManagingTags] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAIBreakdown, setIsAIBreakdown] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskTagId, setNewTaskTagId] = useState<number | ''>('');
   const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
   const [subtaskInput, setSubtaskInput] = useState('');
   const [newTaskNotes, setNewTaskNotes] = useState('');
@@ -40,10 +105,84 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'priority_desc' | 'priority_asc'>('date_desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'in_progress' | 'done'>('all');
-  const [groupBy, setGroupBy] = useState<'none' | 'status' | 'priority'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'status' | 'priority' | 'tag'>('tag');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
+  // Tag management states
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('gray');
+  const [newTagDescription, setNewTagDescription] = useState('');
+  const [newTagDueDate, setNewTagDueDate] = useState('');
+  const [newTagAssignee, setNewTagAssignee] = useState('');
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+
+  // Joyride tour states
+  const [runTour, setRunTour] = useState(false);
+  const [tourSteps] = useState<Step[]>([
+    {
+      target: '.tour-add-task-btn',
+      content: 'Nhấn vào đây để thêm một công việc mới.',
+      disableBeacon: true,
+    },
+    {
+      target: '.tour-ai-btn',
+      content: 'Sử dụng AI để phân tích mục tiêu lớn thành các công việc nhỏ hơn.',
+    },
+    {
+      target: '.tour-filters',
+      content: 'Lọc, sắp xếp và nhóm các công việc của bạn để dễ dàng quản lý.',
+    },
+    {
+      target: '.tour-theme-btn',
+      content: 'Chuyển đổi giữa giao diện sáng và tối.',
+    }
+  ]);
 
   useEffect(() => {
-    fetchTasks();
+    const hasSeenTour = localStorage.getItem('hasSeenTour');
+    if (!hasSeenTour) {
+      // Small delay to let the UI render first
+      setTimeout(() => setRunTour(true), 1000);
+    }
+  }, []);
+
+  const handleJoyrideCallback = (data: any) => {
+    const { status } = data;
+    if (['finished', 'skipped'].includes(status)) {
+      setRunTour(false);
+      localStorage.setItem('hasSeenTour', 'true');
+    }
+  };
+
+  useEffect(() => {
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+    setTheme(initialTheme);
+    if (initialTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchTasks(), fetchTags()]);
+      setLoading(false);
+    };
+    loadData();
   }, []);
 
   const fetchTasks = async () => {
@@ -53,8 +192,16 @@ export default function App() {
       setTasks(data);
     } catch (error) {
       console.error('Failed to fetch tasks', error);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchTags = async () => {
+    try {
+      const res = await fetch('/api/tags');
+      const data = await res.json();
+      setTags(data);
+    } catch (error) {
+      console.error('Failed to fetch tags', error);
     }
   };
 
@@ -64,10 +211,16 @@ export default function App() {
     setNewTaskDesc('');
     setNewTaskPriority('medium');
     setNewTaskDueDate('');
+    setNewTaskTagId('');
     setNewSubtasks([]);
     setSubtaskInput('');
     setNewTaskNotes('');
     setIsAdding(true);
+  };
+
+  const openAddModalWithTag = (tagId: number | '') => {
+    openAddModal();
+    setNewTaskTagId(tagId);
   };
 
   const openEditModal = (task: Task) => {
@@ -76,6 +229,7 @@ export default function App() {
     setNewTaskDesc(task.description || '');
     setNewTaskPriority(task.priority);
     setNewTaskDueDate(task.due_date || '');
+    setNewTaskTagId(task.tag_id || '');
     setNewSubtasks(task.subtasks || []);
     setSubtaskInput('');
     setNewTaskNotes(task.notes || '');
@@ -154,7 +308,8 @@ export default function App() {
             priority: newTaskPriority,
             due_date: newTaskDueDate || null,
             subtasks: newSubtasks,
-            notes: newTaskNotes
+            notes: newTaskNotes,
+            tag_id: newTaskTagId === '' ? null : newTaskTagId
           })
         });
         const updatedTask = await res.json();
@@ -170,7 +325,8 @@ export default function App() {
             priority: newTaskPriority,
             due_date: newTaskDueDate || null,
             subtasks: newSubtasks,
-            notes: newTaskNotes
+            notes: newTaskNotes,
+            tag_id: newTaskTagId === '' ? null : newTaskTagId
           })
         });
         const newTask = await res.json();
@@ -183,6 +339,7 @@ export default function App() {
       setNewTaskDesc('');
       setNewTaskPriority('medium');
       setNewTaskDueDate('');
+      setNewTaskTagId('');
       setNewSubtasks([]);
       setSubtaskInput('');
       setNewTaskNotes('');
@@ -277,9 +434,9 @@ export default function App() {
   };
 
   const priorityColors = {
-    low: 'bg-blue-100 text-blue-700',
-    medium: 'bg-orange-100 text-orange-700',
-    high: 'bg-red-100 text-red-700'
+    low: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    medium: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    high: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
   };
 
   const priorityLabels = {
@@ -292,6 +449,67 @@ export default function App() {
     high: 3,
     medium: 2,
     low: 1
+  };
+
+  const submitTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTagName.trim()) return;
+
+    try {
+      const payload = {
+        name: newTagName,
+        color: newTagColor,
+        description: newTagDescription,
+        due_date: newTagDueDate,
+        assignee: newTagAssignee
+      };
+
+      if (editingTag) {
+        const res = await fetch(`/api/tags/${editingTag.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const updatedTag = await res.json();
+        setTags(tags.map(t => t.id === editingTag.id ? updatedTag : t));
+      } else {
+        const res = await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const newTag = await res.json();
+        setTags([...tags, newTag]);
+      }
+      setNewTagName('');
+      setNewTagColor('gray');
+      setNewTagDescription('');
+      setNewTagDueDate('');
+      setNewTagAssignee('');
+      setEditingTag(null);
+      setIsManagingTags(false);
+    } catch (error) {
+      console.error('Failed to save tag', error);
+    }
+  };
+
+  const deleteTag = async (id: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa thẻ này? Các công việc thuộc thẻ này sẽ không bị xóa.')) return;
+    try {
+      await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+      setTags(tags.filter(t => t.id !== id));
+      // Update tasks locally to remove the deleted tag_id
+      setTasks(tasks.map(t => t.tag_id === id ? { ...t, tag_id: undefined } : t));
+    } catch (error) {
+      console.error('Failed to delete tag', error);
+    }
+  };
+
+  const openTagManager = () => {
+    setIsManagingTags(true);
+    setNewTagName('');
+    setNewTagColor('gray');
+    setEditingTag(null);
   };
 
   let processedTasks = [...tasks];
@@ -336,39 +554,61 @@ export default function App() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={`bg-white p-4 rounded-2xl shadow-sm border flex flex-col gap-3 ${task.status === 'in_progress' ? 'border-blue-200 bg-blue-50/30' : task.status === 'done' ? 'border-gray-100 bg-gray-50/50 opacity-75' : 'border-gray-100'}`}
+      className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border flex flex-col gap-3 ${task.status === 'in_progress' ? 'border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10' : task.status === 'done' ? 'border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 opacity-75' : 'border-gray-100 dark:border-gray-700'}`}
     >
       <div className="flex gap-3 items-start">
         <button 
           onClick={() => cycleTaskStatus(task)}
           className={`mt-0.5 transition-colors ${
-            task.status === 'in_progress' ? 'text-blue-500' : task.status === 'done' ? 'text-emerald-500' : 'text-gray-300 hover:text-indigo-600'
+            task.status === 'in_progress' ? 'text-blue-500' : task.status === 'done' ? 'text-emerald-500' : 'text-gray-300 dark:text-gray-600 hover:text-indigo-600 dark:hover:text-indigo-400'
           }`}
         >
           {task.status === 'in_progress' ? <Clock size={24} /> : task.status === 'done' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
         </button>
         <div className="flex-1 min-w-0">
-          <h3 className={`font-medium truncate ${task.status === 'done' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{task.title}</h3>
+          <h3 className={`font-medium truncate ${task.status === 'done' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{task.title}</h3>
           {task.description && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{task.description}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{task.description}</p>
           )}
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <span className={`text-xs px-2 py-1 rounded-md font-medium ${priorityColors[task.priority]}`}>
               {priorityLabels[task.priority]}
             </span>
             {task.status === 'in_progress' && (
-              <span className="text-xs px-2 py-1 rounded-md font-medium bg-blue-100 text-blue-700">
+              <span className="text-xs px-2 py-1 rounded-md font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                 Đang làm
               </span>
             )}
             {task.due_date && (
-              <span className={`text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 ${isOverdue(task.due_date) && task.status !== 'done' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 ${isOverdue(task.due_date) && task.status !== 'done' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
                 <Calendar size={12} />
                 {formatDate(task.due_date)}
               </span>
             )}
+            {task.tag_id && (
+              (() => {
+                const tag = tags.find(t => t.id === task.tag_id);
+                if (!tag) return null;
+                return (
+                  <span 
+                    className="text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1.5"
+                    style={{ 
+                      backgroundColor: `${tag.color}15`,
+                      color: tag.color,
+                      border: `1px solid ${tag.color}30`
+                    }}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full shadow-sm" 
+                      style={{ backgroundColor: tag.color }} 
+                    />
+                    {tag.name}
+                  </span>
+                );
+              })()
+            )}
             {task.subtasks && task.subtasks.length > 0 && (
-              <span className="text-xs px-2 py-1 rounded-md font-medium bg-gray-100 text-gray-600 flex items-center gap-1">
+              <span className="text-xs px-2 py-1 rounded-md font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center gap-1">
                 <ListTree size={12} />
                 {task.subtasks.filter(st => st.completed).length}/{task.subtasks.length}
               </span>
@@ -378,13 +618,13 @@ export default function App() {
         <div className="flex flex-col gap-1">
           <button 
             onClick={() => openEditModal(task)}
-            className="text-gray-400 hover:text-indigo-600 p-1"
+            className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1"
           >
             <Edit2 size={18} />
           </button>
           <button 
             onClick={() => deleteTask(task.id)}
-            className="text-gray-400 hover:text-red-500 p-1"
+            className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1"
           >
             <Trash2 size={18} />
           </button>
@@ -398,16 +638,16 @@ export default function App() {
             <div key={st.id} className="flex items-center gap-2 group">
               <button 
                 onClick={() => toggleSubtask(task.id, st.id)}
-                className="text-gray-400 hover:text-indigo-600 transition-colors shrink-0"
+                className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0"
               >
-                {st.completed ? <CheckSquare size={16} className="text-indigo-600" /> : <Square size={16} />}
+                {st.completed ? <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" /> : <Square size={16} />}
               </button>
-              <span className={`text-sm flex-1 ${st.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+              <span className={`text-sm flex-1 ${st.completed ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-300'}`}>
                 {st.title}
               </span>
               <button
                 onClick={() => deleteSubtaskDirectly(task.id, st.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0"
+                className="opacity-0 group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-opacity p-1 shrink-0"
                 title="Xóa việc con"
               >
                 <X size={14} />
@@ -419,8 +659,8 @@ export default function App() {
 
       {/* Notes Section */}
       {task.notes && (
-        <div className="ml-9 mt-1 p-3 bg-yellow-50/50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
-          <div className="flex items-center gap-1.5 mb-1 text-yellow-700 font-medium text-xs uppercase tracking-wider">
+        <div className="ml-9 mt-1 p-3 bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 rounded-lg text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+          <div className="flex items-center gap-1.5 mb-1 text-yellow-700 dark:text-yellow-500 font-medium text-xs uppercase tracking-wider">
             <StickyNote size={12} />
             Ghi chú
           </div>
@@ -431,31 +671,69 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans pb-24">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans pb-24 transition-colors duration-200">
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous
+        showSkipButton
+        showProgress
+        callback={handleJoyrideCallback}
+        styles={{
+          options: {
+            primaryColor: '#4f46e5',
+            zIndex: 1000,
+          },
+        }}
+        locale={{
+          back: 'Quay lại',
+          close: 'Đóng',
+          last: 'Hoàn thành',
+          next: 'Tiếp theo',
+          skip: 'Bỏ qua',
+        }}
+      />
       {/* Header */}
-      <header className="bg-white px-6 pt-12 pb-4 shadow-sm sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-900 px-6 pt-12 pb-4 shadow-sm sticky top-0 z-10 transition-colors duration-200">
         <div className="max-w-md mx-auto flex justify-between items-center mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Công việc của tôi</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Công việc của tôi</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {tasks.filter(t => t.status === 'todo').length} chưa làm • {tasks.filter(t => t.status === 'in_progress').length} đang làm • {tasks.filter(t => t.status === 'done').length} đã xong
             </p>
           </div>
-          <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-            <CheckSquare size={20} />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setRunTour(true)}
+              className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Hướng dẫn"
+              title="Hướng dẫn"
+            >
+              <HelpCircle size={20} />
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="tour-theme-btn w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <CheckSquare size={20} />
+            </div>
           </div>
         </div>
         
         {/* Controls */}
-        <div className="max-w-md mx-auto flex gap-2">
+        <div className="tour-filters max-w-md mx-auto flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Filter size={14} className="text-gray-400" />
+              <Filter size={14} className="text-gray-400 dark:text-gray-500" />
             </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="w-full pl-8 pr-8 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full pl-8 pr-8 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="todo">Chưa làm</option>
@@ -490,6 +768,7 @@ export default function App() {
               <option value="none">Không nhóm</option>
               <option value="status">Theo trạng thái</option>
               <option value="priority">Theo ưu tiên</option>
+              <option value="tag">Theo thẻ</option>
             </select>
           </div>
         </div>
@@ -498,8 +777,24 @@ export default function App() {
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6">
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          <div className="space-y-6">
+            {groupBy === 'tag' ? (
+              <>
+                <TagGroupSkeleton />
+                <TagGroupSkeleton />
+              </>
+            ) : groupBy === 'status' || groupBy === 'priority' ? (
+              <>
+                <SectionSkeleton />
+                <SectionSkeleton />
+              </>
+            ) : (
+              <div className="space-y-3">
+                <TaskSkeleton />
+                <TaskSkeleton />
+                <TaskSkeleton />
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
@@ -512,18 +807,18 @@ export default function App() {
                   
                   {processedTasks.filter(t => t.status !== 'done').length === 0 && !loading && (
                     <div className="text-center py-12 px-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 size={32} className="text-gray-400" />
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle2 size={32} className="text-gray-400 dark:text-gray-500" />
                       </div>
-                      <h3 className="text-gray-900 font-medium">Tuyệt vời!</h3>
-                      <p className="text-gray-500 text-sm mt-1">Bạn không có công việc nào đang chờ.</p>
+                      <h3 className="text-gray-900 dark:text-white font-medium">Tuyệt vời!</h3>
+                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Bạn không có công việc nào đang chờ.</p>
                     </div>
                   )}
                 </div>
 
                 {processedTasks.filter(t => t.status === 'done').length > 0 && (
-                  <div className="pt-6 border-t border-gray-200">
-                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Đã hoàn thành</h2>
+                  <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                    <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Đã hoàn thành</h2>
                     <div className="space-y-3">
                       <AnimatePresence>
                         {processedTasks.filter(t => t.status === 'done').map(renderTask)}
@@ -544,7 +839,7 @@ export default function App() {
                   
                   return (
                     <div key={status}>
-                      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                         {status === 'todo' ? <Circle size={16} /> : status === 'in_progress' ? <Clock size={16} className="text-blue-500" /> : <CheckCircle2 size={16} className="text-emerald-500" />}
                         {title} ({statusTasks.length})
                       </h2>
@@ -567,7 +862,7 @@ export default function App() {
                   
                   return (
                     <div key={priority}>
-                      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className={`w-3 h-3 rounded-full ${priority === 'high' ? 'bg-red-500' : priority === 'medium' ? 'bg-orange-500' : 'bg-blue-500'}`} />
                         Ưu tiên {priorityLabels[priority as Priority]} ({priorityTasks.length})
                       </h2>
@@ -581,6 +876,111 @@ export default function App() {
                 })}
               </div>
             )}
+
+            {groupBy === 'tag' && (
+              <div className="space-y-8">
+                {[...tags, { id: -1, name: 'Không có thẻ', color: 'gray' }].map(tag => {
+                  const tagTasks = processedTasks.filter(t => tag.id === -1 ? !t.tag_id : t.tag_id === tag.id);
+                  if (tag.id === -1 && tagTasks.length === 0) return null;
+                  
+                  return (
+                    <div key={tag.id} className="group bg-white dark:bg-gray-800/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                              <span 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: tag.id === -1 ? '#9ca3af' : tag.color }} 
+                              />
+                              {tag.name}
+                              <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({tagTasks.length})</span>
+                            </h2>
+                            {tag.id !== -1 && (
+                              <div className="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setEditingTag(tag as Tag);
+                                    setNewTagName(tag.name);
+                                    setNewTagColor(tag.color);
+                                    setNewTagDescription((tag as Tag).description || '');
+                                    setNewTagDueDate((tag as Tag).due_date || '');
+                                    setNewTagAssignee((tag as Tag).assignee || '');
+                                    setIsManagingTags(true);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                  title="Sửa thẻ"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => deleteTag(tag.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                  title="Xóa thẻ"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {tag.id !== -1 && (
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400 mt-2">
+                              {(tag as Tag).description && (
+                                <p className="w-full text-gray-600 dark:text-gray-300 mb-1">{(tag as Tag).description}</p>
+                              )}
+                              {(tag as Tag).due_date && (
+                                <div className="flex items-center gap-1">
+                                  <Calendar size={14} />
+                                  <span>{new Date((tag as Tag).due_date!).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                              )}
+                              {(tag as Tag).assignee && (
+                                <div className="flex items-center gap-1">
+                                  <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-medium">
+                                    {(tag as Tag).assignee!.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span>{(tag as Tag).assignee}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => openAddModalWithTag(tag.id === -1 ? '' : tag.id)}
+                          className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                        >
+                          <Plus size={14} />
+                          Thêm việc
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        <AnimatePresence>
+                          {tagTasks.map(renderTask)}
+                        </AnimatePresence>
+                        {tagTasks.length === 0 && (
+                          <div className="text-center py-6 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
+                            <p className="text-sm text-gray-400 dark:text-gray-500">Chưa có công việc nào trong thẻ này.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                <button
+                  onClick={() => {
+                    setEditingTag(null);
+                    setNewTagName('');
+                    setNewTagColor('#6366f1');
+                    setIsManagingTags(true);
+                  }}
+                  className="w-full py-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl text-gray-500 dark:text-gray-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:border-indigo-400 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-2 font-medium"
+                >
+                  <Plus size={20} />
+                  Thêm thẻ mới
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -589,15 +989,30 @@ export default function App() {
       <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-20">
         <button
           onClick={() => setIsAIBreakdown(true)}
-          className="w-14 h-14 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+          className="tour-ai-btn w-14 h-14 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
           aria-label="Tạo bằng AI"
+          title="Tạo bằng AI"
         >
           <Sparkles size={24} />
         </button>
         <button
+          onClick={() => {
+            setEditingTag(null);
+            setNewTagName('');
+            setNewTagColor('#6366f1');
+            setIsManagingTags(true);
+          }}
+          className="w-14 h-14 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+          aria-label="Thêm thẻ"
+          title="Thêm thẻ"
+        >
+          <TagIcon size={24} />
+        </button>
+        <button
           onClick={openAddModal}
-          className="w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+          className="tour-add-task-btn w-14 h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
           aria-label="Thêm công việc"
+          title="Thêm công việc"
         >
           <Plus size={24} />
         </button>
@@ -619,34 +1034,34 @@ export default function App() {
               animate={{ y: 0 }} 
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative z-10 shadow-2xl"
+              className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative z-10 shadow-2xl"
             >
-              <h2 className="text-xl font-bold text-gray-900 mb-6">{editingTask ? 'Sửa công việc' : 'Thêm công việc mới'}</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">{editingTask ? 'Sửa công việc' : 'Thêm công việc mới'}</h2>
               <form onSubmit={submitTask} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên công việc</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tên công việc</label>
                   <input
                     type="text"
                     required
                     autoFocus
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                     placeholder="VD: Mua thức ăn cho mèo..."
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả (không bắt buộc)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mô tả (không bắt buộc)</label>
                   <textarea
                     value={newTaskDesc}
                     onChange={(e) => setNewTaskDesc(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none h-24"
+                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none h-24"
                     placeholder="Chi tiết công việc..."
                   />
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mức độ ưu tiên</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mức độ ưu tiên</label>
                     <div className="flex gap-2">
                       {(['low', 'medium', 'high'] as Priority[]).map(p => (
                         <button
@@ -655,8 +1070,8 @@ export default function App() {
                           onClick={() => setNewTaskPriority(p)}
                           className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
                             newTaskPriority === p 
-                              ? (p === 'high' ? 'bg-red-50 border-red-200 text-red-700' : p === 'medium' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-blue-50 border-blue-200 text-blue-700')
-                              : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                              ? (p === 'high' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' : p === 'medium' ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400')
+                              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                           }`}
                         >
                           {priorityLabels[p]}
@@ -665,33 +1080,60 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Hạn chót</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hạn chót</label>
                     <input
                       type="date"
                       value={newTaskDueDate}
                       onChange={(e) => setNewTaskDueDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm text-gray-700"
+                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
                     />
                   </div>
                 </div>
 
+                {/* Tag Selection */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Thẻ (Tag)</label>
+                    <button
+                      type="button"
+                      onClick={openTagManager}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                    >
+                      <Settings2 size={12} />
+                      Quản lý thẻ
+                    </button>
+                  </div>
+                  <select
+                    value={newTaskTagId}
+                    onChange={(e) => setNewTaskTagId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                  >
+                    <option value="">Không có thẻ</option>
+                    {tags.map(tag => (
+                      <option key={tag.id} value={tag.id}>
+                        ● {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Subtasks Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Công việc con</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Công việc con</label>
                   <div className="space-y-2 mb-3">
                     {newSubtasks.map(st => (
-                      <div key={st.id} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                      <div key={st.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-100 dark:border-gray-700 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
                         <input
                           type="text"
                           value={st.title}
                           onChange={(e) => updateSubtaskTitle(st.id, e.target.value)}
-                          className="flex-1 text-sm text-gray-700 bg-transparent outline-none"
+                          className="flex-1 text-sm text-gray-700 dark:text-gray-300 bg-transparent outline-none"
                           placeholder="Nhập tên việc con..."
                         />
                         <button 
                           type="button" 
                           onClick={() => removeSubtask(st.id)}
-                          className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           title="Xóa việc con"
                         >
                           <X size={16} />
@@ -710,14 +1152,14 @@ export default function App() {
                           addSubtask();
                         }
                       }}
-                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                      className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
                       placeholder="Thêm việc con..."
                     />
                     <button
                       type="button"
                       onClick={addSubtask}
                       disabled={!subtaskInput.trim()}
-                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
                     >
                       <Plus size={18} />
                     </button>
@@ -726,11 +1168,11 @@ export default function App() {
 
                 {/* Notes Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú chi tiết (Links, đính kèm...)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ghi chú chi tiết (Links, đính kèm...)</label>
                   <textarea
                     value={newTaskNotes}
                     onChange={(e) => setNewTaskNotes(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none h-24"
+                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none h-24"
                     placeholder="Thêm thông tin chi tiết, đường dẫn, ghi chú..."
                   />
                 </div>
@@ -739,16 +1181,165 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsAdding(false)}
-                    className="flex-1 py-3 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                    className="flex-1 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
                     disabled={!newTaskTitle.trim()}
-                    className="flex-1 py-3 rounded-xl font-medium text-white bg-gray-900 hover:bg-black transition-colors disabled:opacity-50"
+                    className="flex-1 py-3 rounded-xl font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-white hover:bg-black dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
                   >
                     {editingTask ? 'Cập nhật' : 'Lưu công việc'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tag Manager Modal */}
+      <AnimatePresence>
+        {isManagingTags && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-0">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setIsManagingTags(false)}
+            />
+            <motion.div 
+              initial={{ y: '100%' }} 
+              animate={{ y: 0 }} 
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative z-10 shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Quản lý thẻ</h2>
+                <button onClick={() => setIsManagingTags(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2">
+                {tags.length === 0 ? (
+                  <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-4">Chưa có thẻ nào.</p>
+                ) : (
+                  tags.map(tag => (
+                    <div key={tag.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                        <span className="font-medium text-gray-900 dark:text-white">{tag.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            setEditingTag(tag);
+                            setNewTagName(tag.name);
+                            setNewTagColor(tag.color);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => deleteTag(tag.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form onSubmit={submitTag} className="space-y-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+                <h3 className="font-medium text-gray-900 dark:text-white">{editingTag ? 'Sửa thẻ' : 'Thêm thẻ mới'}</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tên thẻ</label>
+                  <input
+                    type="text"
+                    required
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                    placeholder="VD: Công việc, Cá nhân..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mô tả ngắn</label>
+                  <input
+                    type="text"
+                    value={newTagDescription}
+                    onChange={(e) => setNewTagDescription(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                    placeholder="VD: Dự án phát triển web..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ngày hết hạn</label>
+                    <input
+                      type="date"
+                      value={newTagDueDate}
+                      onChange={(e) => setNewTagDueDate(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Người được giao</label>
+                    <input
+                      type="text"
+                      value={newTagAssignee}
+                      onChange={(e) => setNewTagAssignee(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                      placeholder="VD: Nguyễn Văn A"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Màu sắc</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#64748b'].map(color => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewTagColor(color)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${newTagColor === color ? 'scale-110 ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-900' : 'hover:scale-110'}`}
+                        style={{ backgroundColor: color }}
+                      >
+                        {newTagColor === color && <CheckCircle2 size={14} className="text-white" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-2 flex gap-3">
+                  {editingTag && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTag(null);
+                        setNewTagName('');
+                        setNewTagColor('gray');
+                        setNewTagDescription('');
+                        setNewTagDueDate('');
+                        setNewTagAssignee('');
+                      }}
+                      className="flex-1 py-2.5 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm"
+                    >
+                      Hủy sửa
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!newTagName.trim()}
+                    className="flex-1 py-2.5 rounded-xl font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-white hover:bg-black dark:hover:bg-gray-100 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {editingTag ? 'Cập nhật thẻ' : 'Thêm thẻ'}
                   </button>
                 </div>
               </form>
@@ -773,18 +1364,18 @@ export default function App() {
               animate={{ y: 0 }} 
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative z-10 shadow-2xl overflow-hidden"
+              className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative z-10 shadow-2xl overflow-hidden"
             >
               {/* Decorative background */}
-              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-purple-100 to-indigo-50 -z-10" />
+              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-purple-100 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/10 -z-10" />
               
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
                   <Sparkles size={20} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Chia nhỏ bằng AI</h2>
-                  <p className="text-sm text-gray-500">Nhập mục tiêu, AI sẽ tạo danh sách việc cần làm</p>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Chia nhỏ bằng AI</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Nhập mục tiêu, AI sẽ tạo danh sách việc cần làm</p>
                 </div>
               </div>
 
@@ -796,7 +1387,7 @@ export default function App() {
                     value={aiGoal}
                     onChange={(e) => setAiGoal(e.target.value)}
                     disabled={isGenerating}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all resize-none h-32 bg-white/80 backdrop-blur-sm"
+                    className="w-full px-4 py-3 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all resize-none h-32 backdrop-blur-sm"
                     placeholder="VD: Tổ chức tiệc sinh nhật cho mẹ vào cuối tuần này..."
                   />
                 </div>
@@ -806,7 +1397,7 @@ export default function App() {
                     type="button"
                     onClick={() => setIsAIBreakdown(false)}
                     disabled={isGenerating}
-                    className="flex-1 py-3 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                    className="flex-1 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                   >
                     Hủy
                   </button>
