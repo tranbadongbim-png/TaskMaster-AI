@@ -517,9 +517,13 @@ export default function App() {
       setNewTagDueDate('');
       setNewTagAssignee('');
       setEditingTag(null);
-      setIsManagingTags(false);
-    } catch (error) {
+      // Keep modal open to allow adding more tags
+      if (editingTag) {
+        setIsManagingTags(false);
+      }
+    } catch (error: any) {
       console.error('Failed to save tag', error);
+      alert(error.message || 'Không thể lưu thẻ. Vui lòng thử lại.');
     }
   };
 
