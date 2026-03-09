@@ -12,10 +12,11 @@ export async function onRequestPut({ request, env, params }) {
     const newPriority = body.priority !== undefined ? body.priority : currentTask.priority;
     const newDueDate = body.due_date !== undefined ? body.due_date : currentTask.due_date;
     const newSubtasks = body.subtasks !== undefined ? JSON.stringify(body.subtasks) : currentTask.subtasks;
+    const newNotes = body.notes !== undefined ? body.notes : currentTask.notes;
 
     const updatedTask = await env.DB.prepare(
-      "UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ? WHERE id = ? RETURNING *"
-    ).bind(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, id).first();
+      "UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ?, notes = ? WHERE id = ? RETURNING *"
+    ).bind(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, newNotes, id).first();
     
     return Response.json({ ...updatedTask, subtasks: JSON.parse(updatedTask.subtasks || '[]') });
   } catch (e) {

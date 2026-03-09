@@ -50,6 +50,17 @@ export async function onRequestPost({ request, env }) {
     return Response.json(savedTasks);
   } catch (error) {
     console.error("AI Error:", error);
-    return Response.json({ error: error.message || "Failed to generate tasks" }, { status: 500 });
+    
+    // Handle specific Gemini API errors
+    let errorMessage = "Không thể tạo công việc. Vui lòng thử lại sau.";
+    if (error.status === 503 || (error.message && error.message.includes("503"))) {
+      errorMessage = "Hệ thống AI hiện đang quá tải. Vui lòng thử lại sau ít phút.";
+    } else if (error.status === 429 || (error.message && (error.message.includes("429") || error.message.includes("Quota exceeded") || error.message.includes("RESOURCE_EXHAUSTED")))) {
+      errorMessage = "Bạn đã vượt quá giới hạn số lần sử dụng AI. Vui lòng đợi một lát rồi thử lại.";
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    return Response.json({ error: errorMessage }, { status: 500 });
   }
 }

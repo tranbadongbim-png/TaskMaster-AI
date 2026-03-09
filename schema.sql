@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority TEXT DEFAULT 'medium',
   due_date TEXT,
   subtasks TEXT DEFAULT '[]',
+  notes TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

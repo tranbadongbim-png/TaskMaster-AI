@@ -32,6 +32,13 @@ try {
   } catch (e) {
     // Column might already exist, ignore error
   }
+  
+  // Add notes column if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN notes TEXT`);
+  } catch (e) {
+    // Column might already exist, ignore error
+  }
 } catch (error) {
   console.error("Database initialization error:", error);
 }
@@ -58,10 +65,10 @@ async function startServer() {
 
   app.post("/api/tasks", (req, res) => {
     try {
-      const { title, description, priority, due_date, subtasks } = req.body;
+      const { title, description, priority, due_date, subtasks, notes } = req.body;
       const subtasksStr = JSON.stringify(subtasks || []);
-      const stmt = db.prepare("INSERT INTO tasks (title, description, priority, due_date, subtasks) VALUES (?, ?, ?, ?, ?)");
-      const info = stmt.run(title, description || "", priority || "medium", due_date || null, subtasksStr);
+      const stmt = db.prepare("INSERT INTO tasks (title, description, priority, due_date, subtasks, notes) VALUES (?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(title, description || "", priority || "medium", due_date || null, subtasksStr, notes || "");
       const newTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(info.lastInsertRowid) as any;
       res.json({ ...newTask, subtasks: JSON.parse(newTask.subtasks || '[]') });
     } catch (error) {
@@ -71,7 +78,7 @@ async function startServer() {
 
   app.put("/api/tasks/:id", (req, res) => {
     try {
-      const { status, title, description, priority, due_date, subtasks } = req.body;
+      const { status, title, description, priority, due_date, subtasks, notes } = req.body;
       const id = req.params.id;
       
       const currentTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
@@ -83,9 +90,10 @@ async function startServer() {
       const newPriority = priority !== undefined ? priority : currentTask.priority;
       const newDueDate = due_date !== undefined ? due_date : currentTask.due_date;
       const newSubtasks = subtasks !== undefined ? JSON.stringify(subtasks) : currentTask.subtasks;
+      const newNotes = notes !== undefined ? notes : currentTask.notes;
 
-      const stmt = db.prepare("UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ? WHERE id = ?");
-      stmt.run(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, id);
+      const stmt = db.prepare("UPDATE tasks SET status = ?, title = ?, description = ?, priority = ?, due_date = ?, subtasks = ?, notes = ? WHERE id = ?");
+      stmt.run(newStatus, newTitle, newDesc, newPriority, newDueDate, newSubtasks, newNotes, id);
       
       const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
       res.json({ ...updatedTask, subtasks: JSON.parse(updatedTask.subtasks || '[]') });
@@ -161,7 +169,18 @@ async function startServer() {
       res.json(savedTasks);
     } catch (error: any) {
       console.error("AI Error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate tasks" });
+      
+      // Handle specific Gemini API errors
+      let errorMessage = "Không thể tạo công việc. Vui lòng thử lại sau.";
+      if (error.status === 503 || (error.message && error.message.includes("503"))) {
+        errorMessage = "Hệ thống AI hiện đang quá tải. Vui lòng thử lại sau ít phút.";
+      } else if (error.status === 429 || (error.message && (error.message.includes("429") || error.message.includes("Quota exceeded") || error.message.includes("RESOURCE_EXHAUSTED")))) {
+        errorMessage = "Bạn đã vượt quá giới hạn số lần sử dụng AI. Vui lòng đợi một lát rồi thử lại.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
 

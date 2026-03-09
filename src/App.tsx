@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X, StickyNote } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type Priority = 'low' | 'medium' | 'high';
@@ -19,6 +19,7 @@ interface Task {
   priority: Priority;
   due_date?: string;
   subtasks?: Subtask[];
+  notes?: string;
   created_at: string;
 }
 
@@ -34,6 +35,7 @@ export default function App() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
   const [subtaskInput, setSubtaskInput] = useState('');
+  const [newTaskNotes, setNewTaskNotes] = useState('');
   const [aiGoal, setAiGoal] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'priority_desc' | 'priority_asc'>('date_desc');
@@ -64,6 +66,7 @@ export default function App() {
     setNewTaskDueDate('');
     setNewSubtasks([]);
     setSubtaskInput('');
+    setNewTaskNotes('');
     setIsAdding(true);
   };
 
@@ -75,6 +78,7 @@ export default function App() {
     setNewTaskDueDate(task.due_date || '');
     setNewSubtasks(task.subtasks || []);
     setSubtaskInput('');
+    setNewTaskNotes(task.notes || '');
     setIsAdding(true);
   };
 
@@ -86,6 +90,10 @@ export default function App() {
 
   const removeSubtask = (id: string) => {
     setNewSubtasks(newSubtasks.filter(st => st.id !== id));
+  };
+
+  const updateSubtaskTitle = (id: string, newTitle: string) => {
+    setNewSubtasks(newSubtasks.map(st => st.id === id ? { ...st, title: newTitle } : st));
   };
 
   const toggleSubtask = async (taskId: number, subtaskId: string) => {
@@ -110,6 +118,26 @@ export default function App() {
     }
   };
 
+  const deleteSubtaskDirectly = async (taskId: number, subtaskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const updatedSubtasks = (task.subtasks || []).filter(st => st.id !== subtaskId);
+    
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, subtasks: updatedSubtasks } : t));
+
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtasks: updatedSubtasks })
+      });
+    } catch (error) {
+      console.error('Failed to delete subtask', error);
+      setTasks(tasks.map(t => t.id === taskId ? { ...t, subtasks: task.subtasks } : t));
+    }
+  };
+
   const submitTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -125,7 +153,8 @@ export default function App() {
             description: newTaskDesc,
             priority: newTaskPriority,
             due_date: newTaskDueDate || null,
-            subtasks: newSubtasks
+            subtasks: newSubtasks,
+            notes: newTaskNotes
           })
         });
         const updatedTask = await res.json();
@@ -140,7 +169,8 @@ export default function App() {
             description: newTaskDesc,
             priority: newTaskPriority,
             due_date: newTaskDueDate || null,
-            subtasks: newSubtasks
+            subtasks: newSubtasks,
+            notes: newTaskNotes
           })
         });
         const newTask = await res.json();
@@ -155,6 +185,7 @@ export default function App() {
       setNewTaskDueDate('');
       setNewSubtasks([]);
       setSubtaskInput('');
+      setNewTaskNotes('');
     } catch (error) {
       console.error('Failed to save task', error);
     }
@@ -209,7 +240,33 @@ export default function App() {
         setAiGoal('');
       } else {
         console.error('Server error:', data);
-        alert(`Lỗi AI: ${data.error || 'Không thể tạo công việc'}`);
+        
+        // Extract error message cleanly
+        let errorMessage = 'Không thể tạo công việc';
+        if (typeof data.error === 'string') {
+          errorMessage = data.error;
+        } else if (data.error && typeof data.error === 'object') {
+          // If the error is a nested object (like the one in the screenshot)
+          try {
+            const parsedError = typeof data.error === 'string' ? JSON.parse(data.error) : data.error;
+            if (parsedError.error && parsedError.error.message) {
+              errorMessage = parsedError.error.message;
+            } else if (parsedError.message) {
+              errorMessage = parsedError.message;
+            }
+          } catch (e) {
+            errorMessage = JSON.stringify(data.error);
+          }
+        }
+        
+        // Translate common errors
+        if (errorMessage.includes("503") || errorMessage.includes("high demand") || errorMessage.includes("UNAVAILABLE")) {
+          errorMessage = "Hệ thống AI hiện đang quá tải. Vui lòng thử lại sau ít phút.";
+        } else if (errorMessage.includes("429") || errorMessage.includes("Quota exceeded") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+          errorMessage = "Bạn đã vượt quá giới hạn số lần sử dụng AI. Vui lòng đợi một lát rồi thử lại.";
+        }
+        
+        alert(`Lỗi AI: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Failed to generate AI tasks', error);
@@ -341,15 +398,33 @@ export default function App() {
             <div key={st.id} className="flex items-center gap-2 group">
               <button 
                 onClick={() => toggleSubtask(task.id, st.id)}
-                className="text-gray-400 hover:text-indigo-600 transition-colors"
+                className="text-gray-400 hover:text-indigo-600 transition-colors shrink-0"
               >
                 {st.completed ? <CheckSquare size={16} className="text-indigo-600" /> : <Square size={16} />}
               </button>
-              <span className={`text-sm ${st.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+              <span className={`text-sm flex-1 ${st.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                 {st.title}
               </span>
+              <button
+                onClick={() => deleteSubtaskDirectly(task.id, st.id)}
+                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0"
+                title="Xóa việc con"
+              >
+                <X size={14} />
+              </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Notes Section */}
+      {task.notes && (
+        <div className="ml-9 mt-1 p-3 bg-yellow-50/50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
+          <div className="flex items-center gap-1.5 mb-1 text-yellow-700 font-medium text-xs uppercase tracking-wider">
+            <StickyNote size={12} />
+            Ghi chú
+          </div>
+          {task.notes}
         </div>
       )}
     </motion.div>
@@ -605,12 +680,19 @@ export default function App() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Công việc con</label>
                   <div className="space-y-2 mb-3">
                     {newSubtasks.map(st => (
-                      <div key={st.id} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
-                        <span className="flex-1 text-sm text-gray-700">{st.title}</span>
+                      <div key={st.id} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                        <input
+                          type="text"
+                          value={st.title}
+                          onChange={(e) => updateSubtaskTitle(st.id, e.target.value)}
+                          className="flex-1 text-sm text-gray-700 bg-transparent outline-none"
+                          placeholder="Nhập tên việc con..."
+                        />
                         <button 
                           type="button" 
                           onClick={() => removeSubtask(st.id)}
-                          className="text-gray-400 hover:text-red-500"
+                          className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
+                          title="Xóa việc con"
                         >
                           <X size={16} />
                         </button>
@@ -640,6 +722,17 @@ export default function App() {
                       <Plus size={18} />
                     </button>
                   </div>
+                </div>
+
+                {/* Notes Section */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú chi tiết (Links, đính kèm...)</label>
+                  <textarea
+                    value={newTaskNotes}
+                    onChange={(e) => setNewTaskNotes(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none h-24"
+                    placeholder="Thêm thông tin chi tiết, đường dẫn, ghi chú..."
+                  />
                 </div>
 
                 <div className="pt-4 flex gap-3">
