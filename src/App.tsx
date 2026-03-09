@@ -1,6 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X, StickyNote, Moon, Sun, Tag as TagIcon, Settings2, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import { Plus, CircleCheck, Circle, Trash2, Sparkles, SquareCheck, Filter, ArrowUpDown, Clock, Calendar, Pencil, ListTree, Square, X, StickyNote, Moon, Sun, Tag as TagIcon, Settings, CircleHelp, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+export class ErrorBoundary extends React.Component<any, any> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-6">
+          <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-red-100 dark:border-red-900/30">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Đã có lỗi xảy ra</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+              Ứng dụng không thể khởi động. Vui lòng thử tải lại trang hoặc kiểm tra kết nối mạng.
+            </p>
+            <div className="text-left bg-gray-50 dark:bg-gray-800 p-4 rounded-xl mb-6 overflow-auto max-h-32">
+              <code className="text-xs text-red-500 dark:text-red-400">
+                {this.state.error?.toString()}
+              </code>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-medium hover:bg-black dark:hover:bg-gray-100 transition-colors"
+            >
+              Tải lại trang
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (this as any).props.children;
+  }
+}
 
 type Priority = 'low' | 'medium' | 'high';
 type Status = 'todo' | 'in_progress' | 'done';
@@ -85,6 +128,10 @@ const SectionSkeleton = () => (
 );
 
 export default function App() {
+  useEffect(() => {
+    console.log("TaskMaster AI App mounted");
+  }, []);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +197,11 @@ export default function App() {
     try {
       const res = await fetch('/api/tasks');
       const data = await res.json();
-      setTasks(data);
+      if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        console.error('Tasks data is not an array:', data);
+      }
     } catch (error) {
       console.error('Failed to fetch tasks', error);
     }
@@ -160,7 +211,11 @@ export default function App() {
     try {
       const res = await fetch('/api/tags');
       const data = await res.json();
-      setTags(data);
+      if (Array.isArray(data)) {
+        setTags(data);
+      } else {
+        console.error('Tags data is not an array:', data);
+      }
     } catch (error) {
       console.error('Failed to fetch tags', error);
     }
@@ -524,7 +579,7 @@ export default function App() {
             task.status === 'in_progress' ? 'text-blue-500' : task.status === 'done' ? 'text-emerald-500' : 'text-gray-300 dark:text-gray-600 hover:text-indigo-600 dark:hover:text-indigo-400'
           }`}
         >
-          {task.status === 'in_progress' ? <Clock size={24} /> : task.status === 'done' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+          {task.status === 'in_progress' ? <Clock size={24} /> : task.status === 'done' ? <CircleCheck size={24} /> : <Circle size={24} />}
         </button>
         <div className="flex-1 min-w-0">
           <h3 className={`font-medium truncate ${task.status === 'done' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{task.title}</h3>
@@ -548,7 +603,7 @@ export default function App() {
             )}
             {task.tag_id && (
               (() => {
-                const tag = tags.find(t => t.id === task.tag_id);
+                const tag = Array.isArray(tags) ? tags.find(t => t.id === task.tag_id) : null;
                 if (!tag) return null;
                 return (
                   <span 
@@ -581,7 +636,7 @@ export default function App() {
             onClick={() => openEditModal(task)}
             className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1"
           >
-            <Edit2 size={18} />
+            <Pencil size={18} />
           </button>
           <button 
             onClick={() => deleteTask(task.id)}
@@ -601,7 +656,7 @@ export default function App() {
                 onClick={() => toggleSubtask(task.id, st.id)}
                 className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0"
               >
-                {st.completed ? <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" /> : <Square size={16} />}
+                {st.completed ? <SquareCheck size={16} className="text-indigo-600 dark:text-indigo-400" /> : <Square size={16} />}
               </button>
               <span className={`text-sm flex-1 ${st.completed ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-300'}`}>
                 {st.title}
@@ -649,7 +704,7 @@ export default function App() {
               aria-label="Hướng dẫn"
               title="Hướng dẫn"
             >
-              <HelpCircle size={20} />
+              <CircleHelp size={20} />
             </button>
             <button
               onClick={toggleTheme}
@@ -659,7 +714,7 @@ export default function App() {
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
             <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-              <CheckSquare size={20} />
+              <SquareCheck size={20} />
             </div>
           </div>
         </div>
@@ -748,7 +803,7 @@ export default function App() {
                   {processedTasks.filter(t => t.status !== 'done').length === 0 && !loading && (
                     <div className="text-center py-12 px-4">
                       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 size={32} className="text-gray-400 dark:text-gray-500" />
+                        <CircleCheck size={32} className="text-gray-400 dark:text-gray-500" />
                       </div>
                       <h3 className="text-gray-900 dark:text-white font-medium">Tuyệt vời!</h3>
                       <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Bạn không có công việc nào đang chờ.</p>
@@ -780,7 +835,7 @@ export default function App() {
                   return (
                     <div key={status}>
                       <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        {status === 'todo' ? <Circle size={16} /> : status === 'in_progress' ? <Clock size={16} className="text-blue-500" /> : <CheckCircle2 size={16} className="text-emerald-500" />}
+                        {status === 'todo' ? <Circle size={16} /> : status === 'in_progress' ? <Clock size={16} className="text-blue-500" /> : <CircleCheck size={16} className="text-emerald-500" />}
                         {title} ({statusTasks.length})
                       </h2>
                       <div className="space-y-3">
@@ -851,7 +906,7 @@ export default function App() {
                                   className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                                   title="Sửa thẻ"
                                 >
-                                  <Edit2 size={14} />
+                                  <Pencil size={14} />
                                 </button>
                                 <button
                                   onClick={() => deleteTag(tag.id)}
@@ -1039,7 +1094,7 @@ export default function App() {
                       onClick={openTagManager}
                       className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
                     >
-                      <Settings2 size={12} />
+                      <Settings size={12} />
                       Quản lý thẻ
                     </button>
                   </div>
@@ -1183,7 +1238,7 @@ export default function App() {
                           }}
                           className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                         >
-                          <Edit2 size={16} />
+                          <Pencil size={16} />
                         </button>
                         <button 
                           onClick={() => deleteTag(tag.id)}
@@ -1252,7 +1307,7 @@ export default function App() {
                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${newTagColor === color ? 'scale-110 ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-900' : 'hover:scale-110'}`}
                         style={{ backgroundColor: color }}
                       >
-                        {newTagColor === color && <CheckCircle2 size={14} className="text-white" />}
+                        {newTagColor === color && <CircleCheck size={14} className="text-white" />}
                       </button>
                     ))}
                   </div>
