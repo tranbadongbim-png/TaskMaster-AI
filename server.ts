@@ -29,7 +29,9 @@ try {
 
   const tagCount = db.prepare("SELECT COUNT(*) as count FROM tags").get() as any;
   const taskCount = db.prepare("SELECT COUNT(*) as count FROM tasks").get() as any;
+  const tagColumns = db.prepare("PRAGMA table_info(tags)").all() as any[];
   console.log(`Database initialized. Tags: ${tagCount?.count || 0}, Tasks: ${taskCount?.count || 0}`);
+  console.log("Tags table columns:", tagColumns.map(c => c.name).join(", "));
 
   // Migration for existing databases
   try {

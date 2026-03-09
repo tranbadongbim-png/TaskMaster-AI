@@ -489,9 +489,16 @@ export default function App() {
           body: JSON.stringify(payload)
         });
         
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          const text = await res.text();
+          throw new Error(`Server error (${res.status}): ${text.substring(0, 100)}`);
+        }
+        
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to update tag');
+          throw new Error(data.error || `Failed to update tag (Status ${res.status})`);
         }
         
         setTags(tags.map(t => t.id === editingTag.id ? data : t));
@@ -502,9 +509,16 @@ export default function App() {
           body: JSON.stringify(payload)
         });
         
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          const text = await res.text();
+          throw new Error(`Server error (${res.status}): ${text.substring(0, 100)}`);
+        }
+        
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to create tag');
+          throw new Error(data.error || `Failed to create tag (Status ${res.status})`);
         }
         
         console.log('New tag created:', data);
