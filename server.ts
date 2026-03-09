@@ -105,6 +105,9 @@ async function startServer() {
   app.post("/api/tags", (req, res) => {
     try {
       const { name, color, description, due_date, assignee } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: "Tag name is required" });
+      }
       console.log("Creating tag:", { name, color });
       const stmt = db.prepare("INSERT INTO tags (name, color, description, due_date, assignee) VALUES (?, ?, ?, ?, ?)");
       const info = stmt.run(name, color || "#64748b", description || null, due_date || null, assignee || null);

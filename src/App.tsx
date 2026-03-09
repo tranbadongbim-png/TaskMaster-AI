@@ -488,17 +488,28 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const updatedTag = await res.json();
-        setTags(tags.map(t => t.id === editingTag.id ? updatedTag : t));
+        
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to update tag');
+        }
+        
+        setTags(tags.map(t => t.id === editingTag.id ? data : t));
       } else {
         const res = await fetch('/api/tags', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const newTag = await res.json();
-        console.log('New tag created:', newTag);
-        setTags([...tags, newTag]);
+        
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to create tag');
+        }
+        
+        console.log('New tag created:', data);
+        setTags([...tags, data]);
+        setNewTaskTagId(data.id); // Tự động chọn thẻ mới tạo
       }
       setNewTagName('');
       setNewTagColor('#64748b');
@@ -515,10 +526,19 @@ export default function App() {
   const deleteTag = async (id: number) => {
     if (!confirm('Bạn có chắc chắn muốn xóa thẻ này? Các công việc thuộc thẻ này sẽ không bị xóa.')) return;
     try {
-      await fetch(`/api/tags/${id}`, { method: 'DELETE' });
-      setTags(tags.filter(t => t.id !== id));
-      // Update tasks locally to remove the deleted tag_id
-      setTasks(tasks.map(t => t.tag_id === id ? { ...t, tag_id: undefined } : t));
+      const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTags(tags.filter(t => t.id !== id));
+        // Update tasks locally to remove the deleted tag_id
+        setTasks(tasks.map(t => t.tag_id === id ? { ...t, tag_id: undefined } : t));
+        // Reset selected tag if it was the one deleted
+        if (newTaskTagId === id) {
+          setNewTaskTagId('');
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Không thể xóa thẻ');
+      }
     } catch (error) {
       console.error('Failed to delete tag', error);
     }
@@ -528,6 +548,9 @@ export default function App() {
     setIsManagingTags(true);
     setNewTagName('');
     setNewTagColor('#64748b');
+    setNewTagDescription('');
+    setNewTagDueDate('');
+    setNewTagAssignee('');
     setEditingTag(null);
   };
 
@@ -1246,6 +1269,9 @@ export default function App() {
                             setEditingTag(tag);
                             setNewTagName(tag.name || '');
                             setNewTagColor(tag.color && tag.color.startsWith('#') ? tag.color : '#64748b');
+                            setNewTagDescription(tag.description || '');
+                            setNewTagDueDate(tag.due_date || '');
+                            setNewTagAssignee(tag.assignee || '');
                           }}
                           className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                         >
