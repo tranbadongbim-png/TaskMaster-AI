@@ -38,8 +38,8 @@ export async function onRequestPost({ request, env }) {
     const savedTasks = [];
     for (const task of tasks) {
       const info = await env.DB.prepare(
-        "INSERT INTO tasks (title, description, priority) VALUES (?, ?, ?) RETURNING *"
-      ).bind(task.title, task.description || "", task.priority || "medium").first();
+        "INSERT INTO tasks (title, description, priority, subtasks) VALUES (?, ?, ?, ?) RETURNING *"
+      ).bind(task.title, task.description || "", task.priority || "medium", "[]").first();
       
       savedTasks.push({
         ...info,

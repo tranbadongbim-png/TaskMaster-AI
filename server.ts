@@ -144,16 +144,17 @@ async function startServer() {
       
       // Save to DB
       const savedTasks = [];
-      const stmt = db.prepare("INSERT INTO tasks (title, description, priority) VALUES (?, ?, ?)");
+      const stmt = db.prepare("INSERT INTO tasks (title, description, priority, subtasks) VALUES (?, ?, ?, ?)");
       
       for (const task of tasks) {
-        const info = stmt.run(task.title, task.description || "", task.priority || "medium");
+        const info = stmt.run(task.title, task.description || "", task.priority || "medium", "[]");
         savedTasks.push({
           id: info.lastInsertRowid,
           title: task.title,
           description: task.description,
           priority: task.priority,
-          status: 'todo'
+          status: 'todo',
+          subtasks: []
         });
       }
       

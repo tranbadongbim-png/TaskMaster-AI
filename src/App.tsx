@@ -202,15 +202,18 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: aiGoal })
       });
-      const newTasks = await res.json();
-      if (Array.isArray(newTasks)) {
-        setTasks([...newTasks, ...tasks]);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setTasks([...data, ...tasks]);
+        setIsAIBreakdown(false);
+        setAiGoal('');
+      } else {
+        console.error('Server error:', data);
+        alert(`Lỗi AI: ${data.error || 'Không thể tạo công việc'}`);
       }
-      setIsAIBreakdown(false);
-      setAiGoal('');
     } catch (error) {
       console.error('Failed to generate AI tasks', error);
-      alert('Có lỗi xảy ra khi tạo công việc bằng AI.');
+      alert('Có lỗi xảy ra khi kết nối tới máy chủ.');
     } finally {
       setIsGenerating(false);
     }
