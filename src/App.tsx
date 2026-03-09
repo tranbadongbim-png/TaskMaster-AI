@@ -608,8 +608,8 @@ export default function App() {
               (() => {
                 const tag = Array.isArray(tags) ? tags.find(t => t.id === task.tag_id) : null;
                 if (!tag) return null;
-                const getValidColor = (color: string) => {
-                  if (color.startsWith('#')) return color;
+                const getValidColor = (color: string | undefined | null) => {
+                  if (color && color.startsWith('#')) return color;
                   // Fallback for old 'gray' or other non-hex values
                   return '#64748b';
                 };
@@ -896,7 +896,7 @@ export default function App() {
                               <span 
                                 className="w-3 h-3 rounded-full" 
                                 style={{ 
-                                  backgroundColor: tag.id === -1 ? '#9ca3af' : (tag.color.startsWith('#') ? tag.color : '#64748b') 
+                                  backgroundColor: tag.id === -1 ? '#9ca3af' : (tag.color && tag.color.startsWith('#') ? tag.color : '#64748b') 
                                 }} 
                               />
                               {tag.name}
@@ -908,7 +908,7 @@ export default function App() {
                                   onClick={() => {
                                     setEditingTag(tag as Tag);
                                     setNewTagName(tag.name);
-                                    setNewTagColor(tag.color);
+                                    setNewTagColor(tag.color && tag.color.startsWith('#') ? tag.color : '#64748b');
                                     setNewTagDescription((tag as Tag).description || '');
                                     setNewTagDueDate((tag as Tag).due_date || '');
                                     setNewTagAssignee((tag as Tag).assignee || '');
@@ -1237,7 +1237,7 @@ export default function App() {
                   tags.map(tag => (
                     <div key={tag.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
                       <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color && tag.color.startsWith('#') ? tag.color : '#64748b' }} />
                         <span className="font-medium text-gray-900 dark:text-white">{tag.name}</span>
                       </div>
                       <div className="flex gap-2">
@@ -1245,7 +1245,7 @@ export default function App() {
                           onClick={() => {
                             setEditingTag(tag);
                             setNewTagName(tag.name);
-                            setNewTagColor(tag.color);
+                            setNewTagColor(tag.color && tag.color.startsWith('#') ? tag.color : '#64748b');
                           }}
                           className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                         >
