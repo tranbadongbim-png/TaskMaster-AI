@@ -2,6 +2,11 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import { GoogleGenAI, Type } from "@google/genai";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const db = new Database("app.db");
 db.pragma('foreign_keys = ON');
@@ -267,6 +272,17 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+  } else {
+    // Serve static files from dist in production
+    app.use(express.static(path.resolve(__dirname, "dist")));
+    
+    // Handle SPA routing - serve index.html for all non-API routes
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+      res.sendFile(path.resolve(__dirname, "dist/index.html"));
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
