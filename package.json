@@ -22,14 +22,11 @@
     "motion": "^12.23.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-joyride": "^2.9.3",
     "vite": "^6.2.0"
   },
   "overrides": {
-    "react-joyride": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
+    "react": "$react",
+    "react-dom": "$react-dom"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

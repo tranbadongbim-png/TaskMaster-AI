@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Joyride, { Step } from 'react-joyride';
 import { Plus, CheckCircle2, Circle, Trash2, Sparkles, CheckSquare, Filter, ArrowUpDown, Clock, Calendar, Edit2, ListTree, Square, X, StickyNote, Moon, Sun, Tag as TagIcon, Settings2, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -115,44 +114,6 @@ export default function App() {
   const [newTagDueDate, setNewTagDueDate] = useState('');
   const [newTagAssignee, setNewTagAssignee] = useState('');
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
-
-  // Joyride tour states
-  const [runTour, setRunTour] = useState(false);
-  const [tourSteps] = useState<Step[]>([
-    {
-      target: '.tour-add-task-btn',
-      content: 'Nhấn vào đây để thêm một công việc mới.',
-      disableBeacon: true,
-    },
-    {
-      target: '.tour-ai-btn',
-      content: 'Sử dụng AI để phân tích mục tiêu lớn thành các công việc nhỏ hơn.',
-    },
-    {
-      target: '.tour-filters',
-      content: 'Lọc, sắp xếp và nhóm các công việc của bạn để dễ dàng quản lý.',
-    },
-    {
-      target: '.tour-theme-btn',
-      content: 'Chuyển đổi giữa giao diện sáng và tối.',
-    }
-  ]);
-
-  useEffect(() => {
-    const hasSeenTour = localStorage.getItem('hasSeenTour');
-    if (!hasSeenTour) {
-      // Small delay to let the UI render first
-      setTimeout(() => setRunTour(true), 1000);
-    }
-  }, []);
-
-  const handleJoyrideCallback = (data: any) => {
-    const { status } = data;
-    if (['finished', 'skipped'].includes(status)) {
-      setRunTour(false);
-      localStorage.setItem('hasSeenTour', 'true');
-    }
-  };
 
   useEffect(() => {
     // Initialize theme
@@ -672,27 +633,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans pb-24 transition-colors duration-200">
-      <Joyride
-        steps={tourSteps}
-        run={runTour}
-        continuous
-        showSkipButton
-        showProgress
-        callback={handleJoyrideCallback}
-        styles={{
-          options: {
-            primaryColor: '#4f46e5',
-            zIndex: 1000,
-          },
-        }}
-        locale={{
-          back: 'Quay lại',
-          close: 'Đóng',
-          last: 'Hoàn thành',
-          next: 'Tiếp theo',
-          skip: 'Bỏ qua',
-        }}
-      />
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 px-6 pt-12 pb-4 shadow-sm sticky top-0 z-10 transition-colors duration-200">
         <div className="max-w-md mx-auto flex justify-between items-center mb-4">
@@ -704,7 +644,7 @@ export default function App() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setRunTour(true)}
+              onClick={() => {}}
               className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               aria-label="Hướng dẫn"
               title="Hướng dẫn"
