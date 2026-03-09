@@ -8,7 +8,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("app.db");
+const dbPath = path.resolve(__dirname, "app.db");
+console.log("Database path:", dbPath);
+const db = new Database(dbPath);
 db.pragma('foreign_keys = ON');
 
 // Initialize database
@@ -17,13 +19,17 @@ try {
     CREATE TABLE IF NOT EXISTS tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      color TEXT DEFAULT 'gray',
+      color TEXT DEFAULT '#64748b',
       description TEXT,
       due_date TEXT,
       assignee TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  const tagCount = db.prepare("SELECT COUNT(*) as count FROM tags").get() as any;
+  const taskCount = db.prepare("SELECT COUNT(*) as count FROM tasks").get() as any;
+  console.log(`Database initialized. Tags: ${tagCount?.count || 0}, Tasks: ${taskCount?.count || 0}`);
 
   // Migration for existing databases
   try {
@@ -89,8 +95,9 @@ async function startServer() {
   app.get("/api/tags", (req, res) => {
     try {
       const tags = db.prepare("SELECT * FROM tags ORDER BY created_at ASC").all();
-      res.json(tags);
+      res.json(tags || []);
     } catch (error) {
+      console.error("Fetch tags error:", error);
       res.status(500).json({ error: "Failed to fetch tags" });
     }
   });
@@ -98,11 +105,14 @@ async function startServer() {
   app.post("/api/tags", (req, res) => {
     try {
       const { name, color, description, due_date, assignee } = req.body;
+      console.log("Creating tag:", { name, color });
       const stmt = db.prepare("INSERT INTO tags (name, color, description, due_date, assignee) VALUES (?, ?, ?, ?, ?)");
-      const info = stmt.run(name, color || "gray", description || null, due_date || null, assignee || null);
+      const info = stmt.run(name, color || "#64748b", description || null, due_date || null, assignee || null);
       const newTag = db.prepare("SELECT * FROM tags WHERE id = ?").get(info.lastInsertRowid);
+      console.log("Tag created:", newTag);
       res.json(newTag);
     } catch (error) {
+      console.error("Create tag error:", error);
       res.status(500).json({ error: "Failed to create tag" });
     }
   });
@@ -133,12 +143,13 @@ async function startServer() {
   app.get("/api/tasks", (req, res) => {
     try {
       const tasks = db.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all();
-      const parsedTasks = tasks.map((t: any) => ({
+      const parsedTasks = (tasks || []).map((t: any) => ({
         ...t,
         subtasks: JSON.parse(t.subtasks || '[]')
       }));
       res.json(parsedTasks);
     } catch (error) {
+      console.error("Fetch tasks error:", error);
       res.status(500).json({ error: "Failed to fetch tasks" });
     }
   });

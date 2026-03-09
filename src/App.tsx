@@ -156,7 +156,7 @@ export default function App() {
   
   // Tag management states
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState('gray');
+  const [newTagColor, setNewTagColor] = useState('#64748b');
   const [newTagDescription, setNewTagDescription] = useState('');
   const [newTagDueDate, setNewTagDueDate] = useState('');
   const [newTagAssignee, setNewTagAssignee] = useState('');
@@ -197,6 +197,7 @@ export default function App() {
     try {
       const res = await fetch('/api/tasks');
       const data = await res.json();
+      console.log('Fetched tasks:', data);
       if (Array.isArray(data)) {
         setTasks(data);
       } else {
@@ -211,6 +212,7 @@ export default function App() {
     try {
       const res = await fetch('/api/tags');
       const data = await res.json();
+      console.log('Fetched tags:', data);
       if (Array.isArray(data)) {
         setTags(data);
       } else {
@@ -495,10 +497,11 @@ export default function App() {
           body: JSON.stringify(payload)
         });
         const newTag = await res.json();
+        console.log('New tag created:', newTag);
         setTags([...tags, newTag]);
       }
       setNewTagName('');
-      setNewTagColor('gray');
+      setNewTagColor('#64748b');
       setNewTagDescription('');
       setNewTagDueDate('');
       setNewTagAssignee('');
@@ -524,7 +527,7 @@ export default function App() {
   const openTagManager = () => {
     setIsManagingTags(true);
     setNewTagName('');
-    setNewTagColor('gray');
+    setNewTagColor('#64748b');
     setEditingTag(null);
   };
 
@@ -605,18 +608,24 @@ export default function App() {
               (() => {
                 const tag = Array.isArray(tags) ? tags.find(t => t.id === task.tag_id) : null;
                 if (!tag) return null;
+                const getValidColor = (color: string) => {
+                  if (color.startsWith('#')) return color;
+                  // Fallback for old 'gray' or other non-hex values
+                  return '#64748b';
+                };
+                const validColor = getValidColor(tag.color);
                 return (
                   <span 
                     className="text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1.5"
                     style={{ 
-                      backgroundColor: `${tag.color}15`,
-                      color: tag.color,
-                      border: `1px solid ${tag.color}30`
+                      backgroundColor: `${validColor}15`,
+                      color: validColor,
+                      border: `1px solid ${validColor}30`
                     }}
                   >
                     <span 
                       className="w-2 h-2 rounded-full shadow-sm" 
-                      style={{ backgroundColor: tag.color }} 
+                      style={{ backgroundColor: validColor }} 
                     />
                     {tag.name}
                   </span>
@@ -886,7 +895,9 @@ export default function App() {
                             <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                               <span 
                                 className="w-3 h-3 rounded-full" 
-                                style={{ backgroundColor: tag.id === -1 ? '#9ca3af' : tag.color }} 
+                                style={{ 
+                                  backgroundColor: tag.id === -1 ? '#9ca3af' : (tag.color.startsWith('#') ? tag.color : '#64748b') 
+                                }} 
                               />
                               {tag.name}
                               <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({tagTasks.length})</span>
@@ -1319,7 +1330,7 @@ export default function App() {
                       onClick={() => {
                         setEditingTag(null);
                         setNewTagName('');
-                        setNewTagColor('gray');
+                        setNewTagColor('#64748b');
                         setNewTagDescription('');
                         setNewTagDueDate('');
                         setNewTagAssignee('');
