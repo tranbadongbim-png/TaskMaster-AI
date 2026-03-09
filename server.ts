@@ -114,9 +114,9 @@ async function startServer() {
       const newTag = db.prepare("SELECT * FROM tags WHERE id = ?").get(info.lastInsertRowid);
       console.log("Tag created:", newTag);
       res.json(newTag);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Create tag error:", error);
-      res.status(500).json({ error: "Failed to create tag" });
+      res.status(500).json({ error: `Failed to create tag: ${error.message}` });
     }
   });
 
@@ -128,8 +128,9 @@ async function startServer() {
       stmt.run(name, color, description || null, due_date || null, assignee || null, id);
       const updatedTag = db.prepare("SELECT * FROM tags WHERE id = ?").get(id);
       res.json(updatedTag);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update tag" });
+    } catch (error: any) {
+      console.error("Update tag error:", error);
+      res.status(500).json({ error: `Failed to update tag: ${error.message}` });
     }
   });
 
@@ -138,8 +139,9 @@ async function startServer() {
       const id = req.params.id;
       db.prepare("DELETE FROM tags WHERE id = ?").run(id);
       res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete tag" });
+    } catch (error: any) {
+      console.error("Delete tag error:", error);
+      res.status(500).json({ error: `Failed to delete tag: ${error.message}` });
     }
   });
 
