@@ -243,7 +243,7 @@ export default function App() {
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
-    setNewTaskTitle(task.title);
+    setNewTaskTitle(task.title || '');
     setNewTaskDesc(task.description || '');
     setNewTaskPriority(task.priority);
     setNewTaskDueDate(task.due_date || '');
@@ -255,8 +255,8 @@ export default function App() {
   };
 
   const addSubtask = () => {
-    if (!subtaskInput.trim()) return;
-    setNewSubtasks([...newSubtasks, { id: Date.now().toString(), title: subtaskInput.trim(), completed: false }]);
+    if (!(subtaskInput || '').trim()) return;
+    setNewSubtasks([...newSubtasks, { id: Date.now().toString(), title: (subtaskInput || '').trim(), completed: false }]);
     setSubtaskInput('');
   };
 
@@ -312,7 +312,7 @@ export default function App() {
 
   const submitTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
+    if (!(newTaskTitle || '').trim()) return;
 
     try {
       if (editingTask) {
@@ -399,7 +399,7 @@ export default function App() {
 
   const generateAITasks = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!aiGoal.trim() || isGenerating) return;
+    if (!(aiGoal || '').trim() || isGenerating) return;
 
     setIsGenerating(true);
     try {
@@ -471,7 +471,7 @@ export default function App() {
 
   const submitTag = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTagName.trim()) return;
+    if (!(newTagName || '').trim()) return;
 
     try {
       const payload = {
@@ -907,7 +907,7 @@ export default function App() {
                                 <button
                                   onClick={() => {
                                     setEditingTag(tag as Tag);
-                                    setNewTagName(tag.name);
+                                    setNewTagName(tag.name || '');
                                     setNewTagColor(tag.color && tag.color.startsWith('#') ? tag.color : '#64748b');
                                     setNewTagDescription((tag as Tag).description || '');
                                     setNewTagDueDate((tag as Tag).due_date || '');
@@ -1164,7 +1164,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={addSubtask}
-                      disabled={!subtaskInput.trim()}
+                      disabled={!(subtaskInput || '').trim()}
                       className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
                     >
                       <Plus size={18} />
@@ -1193,7 +1193,7 @@ export default function App() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!newTaskTitle.trim()}
+                    disabled={!(newTaskTitle || '').trim()}
                     className="flex-1 py-3 rounded-xl font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-white hover:bg-black dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
                   >
                     {editingTask ? 'Cập nhật' : 'Lưu công việc'}
@@ -1244,7 +1244,7 @@ export default function App() {
                         <button 
                           onClick={() => {
                             setEditingTag(tag);
-                            setNewTagName(tag.name);
+                            setNewTagName(tag.name || '');
                             setNewTagColor(tag.color && tag.color.startsWith('#') ? tag.color : '#64748b');
                           }}
                           className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
@@ -1342,7 +1342,7 @@ export default function App() {
                   )}
                   <button
                     type="submit"
-                    disabled={!newTagName.trim()}
+                    disabled={!(newTagName || '').trim()}
                     className="flex-1 py-2.5 rounded-xl font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-white hover:bg-black dark:hover:bg-gray-100 transition-colors disabled:opacity-50 text-sm"
                   >
                     {editingTag ? 'Cập nhật thẻ' : 'Thêm thẻ'}
@@ -1409,7 +1409,7 @@ export default function App() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!aiGoal.trim() || isGenerating}
+                    disabled={!(aiGoal || '').trim() || isGenerating}
                     className="flex-1 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 transition-all disabled:opacity-70 flex items-center justify-center gap-2 shadow-md shadow-purple-500/20"
                   >
                     {isGenerating ? (
