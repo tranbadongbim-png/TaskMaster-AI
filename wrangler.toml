@@ -1,8 +1,8 @@
-name = "tasks-app"
+name = "taskmaster-ai"
+compatibility_date = "2024-03-01"
 pages_build_output_dir = "dist"
-compatibility_date = "2024-03-09"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "tasks-db"
-database_id = "eb8f3e6d-aafa-46a2-b8af-0bc3272c2986" # ID Database của bạn
+database_name = "taskmaster_db"
+database_id = "YOUR_DATABASE_ID_HERE"

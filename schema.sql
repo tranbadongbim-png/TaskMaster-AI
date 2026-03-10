@@ -1,7 +1,12 @@
+-- D1 Database Schema for TaskMaster AI
+
 CREATE TABLE IF NOT EXISTS tags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  color TEXT DEFAULT 'gray',
+  color TEXT DEFAULT '#64748b',
+  description TEXT,
+  due_date TEXT,
+  assignee TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -14,7 +19,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   due_date TEXT,
   subtasks TEXT DEFAULT '[]',
   notes TEXT,
-  tag_id INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE SET NULL
+  tag_id INTEGER REFERENCES tags(id) ON DELETE SET NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

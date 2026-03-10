@@ -1,66 +1,68 @@
-import { GoogleGenAI, Type } from "@google/genai";
+export const onRequest: PagesFunction<{ DB: D1Database, GEMINI_API_KEY: string }> = async (context) => {
+  const { request, env } = context;
 
-export async function onRequestPost({ request, env }) {
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
   try {
-    const { goal } = await request.json();
-    let apiKey = env.GEMINI_API_KEY1 || env.GEMINI_API_KEY;
-    if (apiKey && apiKey.startsWith('"') && apiKey.endsWith('"')) {
-      apiKey = apiKey.slice(1, -1);
-    }
-    
+    const { goal } = await request.json() as any;
+    const apiKey = env.GEMINI_API_KEY;
+
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-      return Response.json({ error: "Vui lòng cấu hình Gemini API Key thật trong phần Settings của Cloudflare." }, { status: 500 });
+      return new Response(JSON.stringify({ error: "Vui lòng cấu hình GEMINI_API_KEY trong Cloudflare Dashboard > Settings > Variables." }), { status: 500 });
     }
+
+    const prompt = `Break down this goal into 3 to 5 small, actionable tasks: "${goal}". Return the result in Vietnamese.`;
     
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Break down this goal into 3 to 5 small, actionable tasks: "${goal}". Return the result in Vietnamese.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING, description: "Tên công việc ngắn gọn" },
-              description: { type: Type.STRING, description: "Mô tả chi tiết công việc" },
-              priority: { type: Type.STRING, description: "Mức độ ưu tiên: 'high', 'medium', hoặc 'low'" }
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                description: { type: "STRING" },
+                priority: { type: "STRING" }
+              }
             }
           }
         }
-      }
+      })
     });
+
+    const data = await response.json() as any;
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API error");
+    }
+
+    const text = data.candidates[0].content.parts[0].text;
+    const tasks = JSON.parse(text || "[]");
     
-    const tasks = JSON.parse(response.text || "[]");
-    
-    // Save to DB
     const savedTasks = [];
     for (const task of tasks) {
-      const info = await env.DB.prepare(
-        "INSERT INTO tasks (title, description, priority, subtasks) VALUES (?, ?, ?, ?) RETURNING *"
-      ).bind(task.title, task.description || "", task.priority || "medium", "[]").first();
+      const result = await env.DB.prepare(
+        "INSERT INTO tasks (title, description, priority, subtasks) VALUES (?, ?, ?, ?)"
+      ).bind(task.title, task.description || "", task.priority || "medium", "[]").run();
       
       savedTasks.push({
-        ...info,
+        id: result.meta.last_row_id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        status: 'todo',
         subtasks: []
       });
     }
     
-    return Response.json(savedTasks);
-  } catch (error) {
-    console.error("AI Error:", error);
-    
-    // Handle specific Gemini API errors
-    let errorMessage = "Không thể tạo công việc. Vui lòng thử lại sau.";
-    if (error.status === 503 || (error.message && error.message.includes("503"))) {
-      errorMessage = "Hệ thống AI hiện đang quá tải. Vui lòng thử lại sau ít phút.";
-    } else if (error.status === 429 || (error.message && (error.message.includes("429") || error.message.includes("Quota exceeded") || error.message.includes("RESOURCE_EXHAUSTED")))) {
-      errorMessage = "Bạn đã vượt quá giới hạn số lần sử dụng AI. Vui lòng đợi một lát rồi thử lại.";
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    return Response.json({ error: errorMessage }, { status: 500 });
+    return new Response(JSON.stringify(savedTasks), { headers: { "Content-Type": "application/json" } });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
-}
+};

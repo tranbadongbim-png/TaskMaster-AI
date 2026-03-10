@@ -94,6 +94,15 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
+  app.get("/api/debug/tags", (req, res) => {
+    try {
+      const tagColumns = db.prepare("PRAGMA table_info(tags)").all();
+      res.json(tagColumns);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/tags", (req, res) => {
     try {
       const tags = db.prepare("SELECT * FROM tags ORDER BY created_at ASC").all();

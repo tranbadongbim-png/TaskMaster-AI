@@ -330,7 +330,7 @@ export default function App() {
             tag_id: newTaskTagId === '' ? null : newTaskTagId
           })
         });
-        const updatedTask = await res.json();
+        const updatedTask = await res.json() as Task;
         setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
       } else {
         // Create new task
@@ -347,7 +347,7 @@ export default function App() {
             tag_id: newTaskTagId === '' ? null : newTaskTagId
           })
         });
-        const newTask = await res.json();
+        const newTask = await res.json() as Task;
         setTasks([newTask, ...tasks]);
       }
       
@@ -408,7 +408,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: aiGoal })
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (res.ok && Array.isArray(data)) {
         setTasks([...data, ...tasks]);
         setIsAIBreakdown(false);
@@ -489,7 +489,7 @@ export default function App() {
           body: JSON.stringify(payload)
         });
         
-        let data;
+        let data: any;
         try {
           data = await res.json();
         } catch (e) {
@@ -509,7 +509,7 @@ export default function App() {
           body: JSON.stringify(payload)
         });
         
-        let data;
+        let data: any;
         try {
           data = await res.json();
         } catch (e) {
@@ -554,7 +554,7 @@ export default function App() {
           setNewTaskTagId('');
         }
       } else {
-        const data = await res.json();
+        const data = await res.json() as any;
         alert(data.error || 'Không thể xóa thẻ');
       }
     } catch (error) {
